@@ -24,18 +24,23 @@ int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
+ew::Transform monkeyTransform;
+ew::CameraController cameraController;
+ew::Camera camera;
+
+struct Material {
+	float Ka = 1.0;
+	float Kd = 0.5;
+	float Ks = 0.5;
+	float Shininess = 128;
+}material;
+
 int main() {
 	GLFWwindow* window = initWindow("Assignment 0", screenWidth, screenHeight);
 
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
-	ew::Camera camera;
-	ew::Transform monkeyTransform;
-	ew::CameraController cameraController;
-	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
-	camera.target = glm::vec3(0.0f, 0.0f, 0.0f); //Look at the center of the scene
-	camera.aspectRatio = (float)screenWidth / screenHeight;
-	camera.fov = 60.0f; //Vertical field of view, in degrees
+	
 	//Handles to OpenGL object are unsigned integers
 	GLuint brickTexture = ew::loadTexture("assets/brick_color.jpg");
 	glEnable(GL_CULL_FACE);
@@ -43,6 +48,11 @@ int main() {
 	glEnable(GL_DEPTH_TEST); //Depth testing
 
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
+
+	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
+	camera.target = glm::vec3(0.0f, 0.0f, 0.0f); //Look at the center of the scene
+	camera.aspectRatio = (float)screenWidth / screenHeight;
+	camera.fov = 60.0f; //Vertical field of view, in degrees
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -61,6 +71,13 @@ int main() {
 		shader.use();
 		shader.setInt("_MainTex", 0);
 
+		shader.setVec3("_EyePos", camera.position);
+
+		shader.setFloat("_Material.Ka", material.Ka);
+		shader.setFloat("_Material.Kd", material.Kd);
+		shader.setFloat("_Material.Ks", material.Ks);
+		shader.setFloat("_Material.Shininess", material.Shininess);
+
 		//transform.modelMatrix() combines translation, rotation, and scale into a 4x4 model matrix
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
@@ -71,8 +88,7 @@ int main() {
 
 		cameraController.move(window, &camera, deltaTime);
 
-
-		drawUI(camera, cameraController);
+		drawUI();
 
 		glfwSwapBuffers(window);
 	}
@@ -85,7 +101,7 @@ void resetCamera(ew::Camera* camera, ew::CameraController* controller) {
 	controller->yaw = controller->pitch = 0;
 }
 
-void drawUI(ew::Camera camera, ew::CameraController cameraController) {
+void drawUI() {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui::NewFrame();
@@ -93,6 +109,12 @@ void drawUI(ew::Camera camera, ew::CameraController cameraController) {
 	ImGui::Begin("Settings");
 	if (ImGui::Button("Reset Camera")) {
 		resetCamera(&camera, &cameraController);
+	}
+	if (ImGui::CollapsingHeader("Material")) {
+		ImGui::SliderFloat("AmbientK", &material.Ka, 0.0f, 1.0f);
+		ImGui::SliderFloat("DiffuseK", &material.Kd, 0.0f, 1.0f);
+		ImGui::SliderFloat("SpecularK", &material.Ks, 0.0f, 1.0f);
+		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
 	}
 	//Add more camera settings here!
 	ImGui::End();
