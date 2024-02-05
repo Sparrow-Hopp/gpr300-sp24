@@ -36,6 +36,10 @@ struct Material {
 	float Shininess = 128;
 }material;
 
+struct Blur {
+	float intensity;
+}blur;
+
 int main() {
 	GLFWwindow* window = initWindow("Assignment 1", screenWidth, screenHeight);
 
@@ -47,6 +51,7 @@ int main() {
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK); //Back face culling
 	glEnable(GL_DEPTH_TEST); //Depth testing
+	glDepthFunc(GL_LESS);
 
 	//create framebuffer
 	sh::FrameBuffer framebuffer = sh::createFramebuffer(screenWidth, screenHeight, (int)(GL_RGB16F));
@@ -55,6 +60,8 @@ int main() {
 	glCreateVertexArrays(1, &dummyVAO);
 
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
+
+	blur.intensity = 1.0f;
 
 	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
 	camera.target = glm::vec3(0.0f, 0.0f, 0.0f); //Look at the center of the scene
@@ -75,8 +82,8 @@ int main() {
 		glClearColor(1.0f,0.0f,0.92f,1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		//glActiveTexture(GL_TEXTURE0);
-		//glBindTexture(GL_TEXTURE_2D, brickTexture); 
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, brickTexture); 
 
 		
 		//glNamedFramebufferTexture(framebuffer.fbo,	GL_DEPTH_ATTACHMENT, brickTexture, 0);
@@ -84,19 +91,21 @@ int main() {
 
 		//second pass
 		glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
-		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+		glClearColor(0.4f, 0.0f, 0.6f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		//Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
 		shader.use();
 		shader.setInt("_MainTex", 0);
 
-		shader.setVec3("_EyePos", camera.position);
+		//shader.setVec3("_EyePos", camera.position);
 
-		shader.setFloat("_Material.Ka", material.Ka);
-		shader.setFloat("_Material.Kd", material.Kd);
-		shader.setFloat("_Material.Ks", material.Ks);
-		shader.setFloat("_Material.Shininess", material.Shininess);
+		//shader.setFloat("_Material.Ka", material.Ka);
+		//shader.setFloat("_Material.Kd", material.Kd);
+		//shader.setFloat("_Material.Ks", material.Ks);
+		//shader.setFloat("_Material.Shininess", material.Shininess);
+
+		shader.setFloat("_Blur.intensity", blur.intensity);
 
 		//transform.modelMatrix() combines translation, rotation, and scale into a 4x4 model matrix
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
@@ -143,6 +152,9 @@ void drawUI() {
 		ImGui::SliderFloat("DiffuseK", &material.Kd, 0.0f, 1.0f);
 		ImGui::SliderFloat("SpecularK", &material.Ks, 0.0f, 1.0f);
 		ImGui::SliderFloat("Shininess", &material.Shininess, 2.0f, 1024.0f);
+	}
+	if (ImGui::CollapsingHeader("Blur")) {
+		ImGui::SliderFloat("Intensity", &blur.intensity, 1.0f, 10.0f);
 	}
 	//Add more camera settings here!
 	ImGui::End();
