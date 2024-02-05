@@ -8,6 +8,7 @@
 #include <ew/transform.h>
 #include <ew/cameraController.h>
 #include <ew/texture.h>
+#include <ew/procGen.h>
 #include <sh/framebuffer.h>
 
 #include <GLFW/glfw3.h>
@@ -45,6 +46,7 @@ int main() {
 
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
+	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
 	
 	//Handles to OpenGL object are unsigned integers
 	GLuint brickTexture = ew::loadTexture("assets/brick_color.jpg");
@@ -111,6 +113,7 @@ int main() {
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 
+		planeMesh.draw();
 		monkeyModel.draw(); //Draws monkey model using current shader
 
 		glBindTextureUnit(0, framebuffer.colorBuffer[0]);
