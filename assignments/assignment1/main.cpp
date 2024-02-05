@@ -98,12 +98,12 @@ int main() {
 		shader.use();
 		shader.setInt("_MainTex", 0);
 
-		//shader.setVec3("_EyePos", camera.position);
+		shader.setVec3("_EyePos", camera.position);
 
-		//shader.setFloat("_Material.Ka", material.Ka);
-		//shader.setFloat("_Material.Kd", material.Kd);
-		//shader.setFloat("_Material.Ks", material.Ks);
-		//shader.setFloat("_Material.Shininess", material.Shininess);
+		shader.setFloat("_Material.Ka", material.Ka);
+		shader.setFloat("_Material.Kd", material.Kd);
+		shader.setFloat("_Material.Ks", material.Ks);
+		shader.setFloat("_Material.Shininess", material.Shininess);
 
 		shader.setFloat("_Blur.intensity", blur.intensity);
 
