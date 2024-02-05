@@ -130,6 +130,7 @@ int main() {
 		glfwSwapBuffers(window);
 	}
 	printf("Shutting down...");
+	sh::deleteFramebuffer(framebuffer);
 }
 
 void resetCamera(ew::Camera* camera, ew::CameraController* controller) {
