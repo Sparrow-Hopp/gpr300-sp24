@@ -51,6 +51,9 @@ int main() {
 	//create framebuffer
 	sh::FrameBuffer framebuffer = sh::createFramebuffer(screenWidth, screenHeight, (int)(GL_RGB16F));
 
+	unsigned int dummyVAO;
+	glCreateVertexArrays(1, &dummyVAO);
+
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
 	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
@@ -67,13 +70,23 @@ int main() {
 
 		//RENDER
 		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
-		glViewport(0, 0, framebuffer.width, framebuffer.height);
+		//glViewport(0, 0, framebuffer.width, framebuffer.height);
 
 		glClearColor(0.6f,0.8f,0.92f,1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, brickTexture);
+		//glActiveTexture(GL_TEXTURE0);
+		//glBindTexture(GL_TEXTURE_2D, brickTexture); 
+
+		
+		//glNamedFramebufferTexture(framebuffer.fbo,	GL_DEPTH_ATTACHMENT, brickTexture, 0);
+		glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+		//second pass
+		glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
+		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+
 		//Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
 		shader.use();
 		shader.setInt("_MainTex", 0);
@@ -88,6 +101,14 @@ int main() {
 		//transform.modelMatrix() combines translation, rotation, and scale into a 4x4 model matrix
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+
+		glBindTextureUnit(0, framebuffer.colorBuffer[0]);
+
+		glBindVertexArray(dummyVAO);
+		glDisable(GL_DEPTH_TEST);
+		glBindTexture(GL_TEXTURE_2D, framebuffer.colorBuffer[0]);
+		glDrawArrays(GL_TRIANGLES, 0, 6); //6 for quad, 3 for triangle
+
 		monkeyModel.draw(); //Draws monkey model using current shader
 
 		//Rotate model around Y axis
