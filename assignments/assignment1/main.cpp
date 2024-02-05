@@ -72,7 +72,7 @@ int main() {
 		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
 		//glViewport(0, 0, framebuffer.width, framebuffer.height);
 
-		glClearColor(0.6f,0.8f,0.92f,1.0f);
+		glClearColor(1.0f,0.0f,0.92f,1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		//glActiveTexture(GL_TEXTURE0);
@@ -102,14 +102,14 @@ int main() {
 		shader.setMat4("_Model", monkeyTransform.modelMatrix());
 		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 
+		monkeyModel.draw(); //Draws monkey model using current shader
+
 		glBindTextureUnit(0, framebuffer.colorBuffer[0]);
 
 		glBindVertexArray(dummyVAO);
 		glDisable(GL_DEPTH_TEST);
 		glBindTexture(GL_TEXTURE_2D, framebuffer.colorBuffer[0]);
 		glDrawArrays(GL_TRIANGLES, 0, 6); //6 for quad, 3 for triangle
-
-		monkeyModel.draw(); //Draws monkey model using current shader
 
 		//Rotate model around Y axis
 		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
