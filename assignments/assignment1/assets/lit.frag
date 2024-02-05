@@ -38,15 +38,14 @@ void main(){
         1, 2, 1
     );
 
-	vec3 sampleTex[9];
-    for(int i = 0; i < 9; i++)
-    {
-        kernel[i] /= 16;
-        sampleTex[i] = vec3(texture(_ColorBuffer, vs_in.TexCoord.st + offsets[i]));
+	vec2 texelSize = _Blur.intensity / textureSize(_ColorBuffer,0).xy;
+    vec3 totalColor = vec3(0);
+    for(int y = -2; y <= 2; y++){
+        for(int x = -2; x <= 2; x++){
+            vec2 offset = vec2(x,y) * texelSize;
+            totalColor += texture(_ColorBuffer,vs_in.TexCoord + offset).rgb;
+        }
     }
-    vec3 col = vec3(0.0);
-    for(int i = 0; i < 9; i++)
-        col += sampleTex[i] * kernel[i];
-
-	FragColor = vec4(col,1.0);
+    totalColor/=(5 * 5);
+    FragColor = vec4(totalColor,1.0);
 }
