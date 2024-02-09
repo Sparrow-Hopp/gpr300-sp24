@@ -8,6 +8,7 @@
 #include <ew/transform.h>
 #include <ew/cameraController.h>
 #include <ew/texture.h>
+#include <ew/procGen.h>
 #include <sh/framebuffer.h>
 
 #include <GLFW/glfw3.h>
@@ -46,6 +47,9 @@ int main() {
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
 	ew::Shader postProcessingShader = ew::Shader("assets/screenQuad.vert", "assets/postProcess.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
+	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
+
+	monkeyTransform.position = glm::vec3(0.0f, 0.0f, 0.0f);
 	
 	//Handles to OpenGL object are unsigned integers
 	GLuint brickTexture = ew::loadTexture("assets/brick_color.jpg");
@@ -63,7 +67,7 @@ int main() {
 
 	blur.intensity = 1.0f;
 
-	camera.position = glm::vec3(0.0f, 0.0f, 5.0f);
+	camera.position = glm::vec3(0.0f, 5.0f, 5.0f);
 	camera.target = glm::vec3(0.0f, 0.0f, 0.0f); //Look at the center of the scene
 	camera.aspectRatio = (float)screenWidth / screenHeight;
 	camera.fov = 60.0f; //Vertical field of view, in degrees
@@ -78,7 +82,6 @@ int main() {
 		//RENDER TO FRAMEBUFFER
 		{
 			glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
-			//glViewport(0, 0, framebuffer.width, framebuffer.height);
 
 			glClearColor(1.0f, 0.0f, 0.92f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -87,7 +90,6 @@ int main() {
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, brickTexture);
 
-			//glNamedFramebufferTexture(framebuffer.fbo,	GL_DEPTH_ATTACHMENT, brickTexture, 0);
 			glDrawBuffer(GL_COLOR_ATTACHMENT0);
 		}
 		//USE MONKEY SHADER AND DRAW
@@ -107,6 +109,7 @@ int main() {
 			shader.setMat4("_Model", monkeyTransform.modelMatrix());
 			shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 
+			planeMesh.draw();
 			monkeyModel.draw(); //Draws monkey model using current shader
 
 			glBindTextureUnit(0, framebuffer.colorBuffer[0]);
@@ -121,7 +124,6 @@ int main() {
 			postProcessingShader.setFloat("_Blur.intensity", blur.intensity);
 
 			glBindVertexArray(dummyVAO);
-			//glDisable(GL_DEPTH_TEST);
 			glBindTexture(GL_TEXTURE_2D, framebuffer.colorBuffer[0]);
 			glDrawArrays(GL_TRIANGLES, 0, 6); //6 for quad, 3 for triangle
 		}
