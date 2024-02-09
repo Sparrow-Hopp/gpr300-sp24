@@ -44,13 +44,13 @@ int main() {
 	GLFWwindow* window = initWindow("Assignment 1", screenWidth, screenHeight);
 
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
+	ew::Shader postProcessingShader = ew::Shader("assets/screenQuad.vert", "assets/postProcess.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	
 	//Handles to OpenGL object are unsigned integers
 	GLuint brickTexture = ew::loadTexture("assets/brick_color.jpg");
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK); //Back face culling
-	glEnable(GL_DEPTH_TEST); //Depth testing
 	glDepthFunc(GL_LESS);
 
 	//create framebuffer
@@ -75,50 +75,56 @@ int main() {
 		deltaTime = time - prevFrameTime;
 		prevFrameTime = time;
 
-		//RENDER
-		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
-		//glViewport(0, 0, framebuffer.width, framebuffer.height);
+		//RENDER TO FRAMEBUFFER
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
+			//glViewport(0, 0, framebuffer.width, framebuffer.height);
 
-		glClearColor(1.0f,0.0f,0.92f,1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glClearColor(1.0f, 0.0f, 0.92f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glEnable(GL_DEPTH_TEST);
 
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, brickTexture); 
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, brickTexture);
 
-		
-		//glNamedFramebufferTexture(framebuffer.fbo,	GL_DEPTH_ATTACHMENT, brickTexture, 0);
-		glDrawBuffer(GL_COLOR_ATTACHMENT0);
+			//glNamedFramebufferTexture(framebuffer.fbo,	GL_DEPTH_ATTACHMENT, brickTexture, 0);
+			glDrawBuffer(GL_COLOR_ATTACHMENT0);
+		}
+		//USE MONKEY SHADER AND DRAW
+		{
+			//Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
+			shader.use();
+			shader.setInt("_MainTex", 0);
 
-		//second pass
-		glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
-		glClearColor(0.4f, 0.0f, 0.6f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
+			shader.setVec3("_EyePos", camera.position);
 
-		//Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
-		shader.use();
-		shader.setInt("_MainTex", 0);
+			shader.setFloat("_Material.Ka", material.Ka);
+			shader.setFloat("_Material.Kd", material.Kd);
+			shader.setFloat("_Material.Ks", material.Ks);
+			shader.setFloat("_Material.Shininess", material.Shininess);
 
-		shader.setVec3("_EyePos", camera.position);
+			//transform.modelMatrix() combines translation, rotation, and scale into a 4x4 model matrix
+			shader.setMat4("_Model", monkeyTransform.modelMatrix());
+			shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 
-		shader.setFloat("_Material.Ka", material.Ka);
-		shader.setFloat("_Material.Kd", material.Kd);
-		shader.setFloat("_Material.Ks", material.Ks);
-		shader.setFloat("_Material.Shininess", material.Shininess);
+			monkeyModel.draw(); //Draws monkey model using current shader
 
-		shader.setFloat("_Blur.intensity", blur.intensity);
+			glBindTextureUnit(0, framebuffer.colorBuffer[0]);
+		}
+		//SWAP TO BACKGROUND AND DRAW TO FULLSCREEN QUAD USING POSTPROCESSING SHADER
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
+			glClearColor(0.4f, 0.0f, 0.6f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		//transform.modelMatrix() combines translation, rotation, and scale into a 4x4 model matrix
-		shader.setMat4("_Model", monkeyTransform.modelMatrix());
-		shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+			postProcessingShader.use();
+			postProcessingShader.setFloat("_Blur.intensity", blur.intensity);
 
-		monkeyModel.draw(); //Draws monkey model using current shader
-
-		glBindTextureUnit(0, framebuffer.colorBuffer[0]);
-
-		glBindVertexArray(dummyVAO);
-		glDisable(GL_DEPTH_TEST);
-		glBindTexture(GL_TEXTURE_2D, framebuffer.colorBuffer[0]);
-		glDrawArrays(GL_TRIANGLES, 0, 6); //6 for quad, 3 for triangle
+			glBindVertexArray(dummyVAO);
+			//glDisable(GL_DEPTH_TEST);
+			glBindTexture(GL_TEXTURE_2D, framebuffer.colorBuffer[0]);
+			glDrawArrays(GL_TRIANGLES, 0, 6); //6 for quad, 3 for triangle
+		}
 
 		//Rotate model around Y axis
 		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
