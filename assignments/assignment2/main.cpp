@@ -10,6 +10,7 @@
 #include <ew/texture.h>
 #include <ew/procGen.h>
 #include <sh/framebuffer.h>
+#include <sh/shadowbuffer.h>
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -28,7 +29,10 @@ float deltaTime;
 
 ew::Transform monkeyTransform, planeTransform;
 ew::CameraController cameraController;
-ew::Camera camera;
+ew::Camera camera, lightCamera;
+
+sh::ShadowBuffer shadowbuffer;
+sh::FrameBuffer framebuffer;
 
 struct Material {
 	float Ka = 1.0;
@@ -41,11 +45,18 @@ struct Blur {
 	float intensity;
 }blur;
 
+struct Position {
+	float xCoord = 1.0f;
+	float yCoord = -1.0f;
+	float zCoord = 1.0f;
+}lightPosition;
+
 int main() {
-	GLFWwindow* window = initWindow("Assignment 1", screenWidth, screenHeight);
+	GLFWwindow* window = initWindow("Assignment 2", screenWidth, screenHeight);
 
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
 	ew::Shader postProcessingShader = ew::Shader("assets/screenQuad.vert", "assets/postProcess.frag");
+	ew::Shader shadowShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
 
@@ -58,8 +69,9 @@ int main() {
 	glCullFace(GL_BACK); //Back face culling
 	glDepthFunc(GL_LESS);
 
-	//create framebuffer
-	sh::FrameBuffer framebuffer = sh::createFramebuffer(screenWidth, screenHeight, (int)(GL_RGB16F));
+	//create buffers
+	shadowbuffer = sh::createShadowBuffer(2048, 2048);
+	framebuffer = sh::createFramebuffer(screenWidth, screenHeight, (int)(GL_RGB16F));
 
 	unsigned int dummyVAO;
 	glCreateVertexArrays(1, &dummyVAO);
@@ -68,10 +80,18 @@ int main() {
 
 	blur.intensity = 1.0f;
 
+	//set viewing camera values
 	camera.position = glm::vec3(0.0f, 5.0f, 5.0f);
 	camera.target = glm::vec3(0.0f, 0.0f, 0.0f); //Look at the center of the scene
 	camera.aspectRatio = (float)screenWidth / screenHeight;
 	camera.fov = 60.0f; //Vertical field of view, in degrees
+
+	//set lighting camera values
+	lightCamera.position = glm::vec3(5.0f, 15.0f, 5.0f);
+	lightCamera.target = glm::vec3(0.0f);
+	lightCamera.aspectRatio = 1.0f;
+	lightCamera.orthographic = true;
+	lightCamera.orthoHeight = 10.0f;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -80,11 +100,29 @@ int main() {
 		deltaTime = time - prevFrameTime;
 		prevFrameTime = time;
 
+		//RENDER TO SHADOW BUFFER
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, shadowbuffer.fbo);
+			glViewport(0, 0, shadowbuffer.width, shadowbuffer.height);
+			glClear(GL_DEPTH_BUFFER_BIT);
+
+			shadowShader.use();
+
+			shadowShader.setMat4("_Model", monkeyTransform.modelMatrix());
+			shadowShader.setMat4("_ViewProjection", lightCamera.projectionMatrix() * lightCamera.viewMatrix());
+
+			monkeyModel.draw();
+
+			shadowShader.setMat4("_Model", planeTransform.modelMatrix());
+			planeMesh.draw();
+
+		}
 		//RENDER TO FRAMEBUFFER
 		{
 			glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
+			glViewport(0, 0, framebuffer.width, framebuffer.height);
 
-			glClearColor(1.0f, 0.0f, 0.92f, 1.0f);
+			glClearColor(0.0f, 0.6f, 0.92f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glEnable(GL_DEPTH_TEST);
 
@@ -100,6 +138,7 @@ int main() {
 			shader.setInt("_MainTex", 0);
 
 			shader.setVec3("_EyePos", camera.position);
+			shader.setVec3("_LightDirection", glm::normalize(glm::vec3(lightCamera.position.x, lightCamera.position.y * -1.0f, lightCamera.position.z)));
 
 			shader.setFloat("_Material.Ka", material.Ka);
 			shader.setFloat("_Material.Kd", material.Kd);
@@ -120,7 +159,7 @@ int main() {
 		//SWAP TO BACKGROUND AND DRAW TO FULLSCREEN QUAD USING POSTPROCESSING SHADER
 		{
 			glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
-			glClearColor(0.4f, 0.0f, 0.6f, 1.0f);
+			glClearColor(0.0f, 0.4f, 0.8f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 			postProcessingShader.use();
@@ -134,6 +173,8 @@ int main() {
 		//Rotate model around Y axis
 		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
 
+		lightCamera.position = glm::vec3(lightPosition.xCoord * 5.0f, lightPosition.yCoord * -15.0f, lightPosition.zCoord * 5.0f);
+
 		cameraController.move(window, &camera, deltaTime);
 
 		drawUI();
@@ -142,6 +183,7 @@ int main() {
 	}
 	printf("Shutting down...");
 	sh::deleteFramebuffer(framebuffer);
+	sh::deleteShadowBuffer(shadowbuffer);
 }
 
 void resetCamera(ew::Camera* camera, ew::CameraController* controller) {
@@ -168,7 +210,24 @@ void drawUI() {
 	if (ImGui::CollapsingHeader("Blur")) {
 		ImGui::SliderFloat("Intensity", &blur.intensity, 1.0f, 10.0f);
 	}
+	if (ImGui::CollapsingHeader("Light")) {
+		ImGui::SliderFloat("X Coord", &lightPosition.xCoord, -1.0f, 1.0f);
+		ImGui::SliderFloat("Y Coord", &lightPosition.yCoord, -1.0f, 1.0f);
+		ImGui::SliderFloat("Z Coord", &lightPosition.zCoord, -1.0f, 1.0f);
+	}
 	//Add more camera settings here!
+
+	ImGui::Begin("Shadow Map");
+	//Using a Child allow to fill all the space of the window.
+	ImGui::BeginChild("Shadow Map");
+	//Stretch image to be window size
+	ImVec2 windowSize = ImGui::GetWindowSize();
+	//Invert 0-1 V to flip vertically for ImGui display
+	//shadowMap is the texture2D handle
+	ImGui::Image((ImTextureID)shadowbuffer.shadowMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
+	ImGui::EndChild();
+	ImGui::End();
+
 	ImGui::End();
 
 	ImGui::Render();

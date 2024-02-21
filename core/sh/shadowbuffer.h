@@ -9,7 +9,9 @@ namespace sh
 	{
 		unsigned int fbo;
 		unsigned int shadowMap;
+		unsigned int width;
+		unsigned int height;
 	};
-	ShadowBuffer createShadowBuffer();
+	ShadowBuffer createShadowBuffer(unsigned int width, unsigned int height);
 	void deleteShadowBuffer(ShadowBuffer buff);
 }
