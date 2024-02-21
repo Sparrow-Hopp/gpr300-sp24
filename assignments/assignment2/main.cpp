@@ -26,7 +26,7 @@ unsigned int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
-ew::Transform monkeyTransform;
+ew::Transform monkeyTransform, planeTransform;
 ew::CameraController cameraController;
 ew::Camera camera;
 
@@ -50,6 +50,7 @@ int main() {
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
 
 	monkeyTransform.position = glm::vec3(0.0f, 0.0f, 0.0f);
+	planeTransform.position = glm::vec3(0.0f, -2.0f, 0.0f);
 	
 	//Handles to OpenGL object are unsigned integers
 	GLuint brickTexture = ew::loadTexture("assets/brick_color.jpg");
@@ -109,8 +110,10 @@ int main() {
 			shader.setMat4("_Model", monkeyTransform.modelMatrix());
 			shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 
-			planeMesh.draw();
 			monkeyModel.draw(); //Draws monkey model using current shader
+
+			shader.setMat4("_Model", planeTransform.modelMatrix());
+			planeMesh.draw();
 
 			glBindTextureUnit(0, framebuffer.colorBuffer[0]);
 		}
@@ -142,7 +145,7 @@ int main() {
 }
 
 void resetCamera(ew::Camera* camera, ew::CameraController* controller) {
-	camera->position = glm::vec3(0, 0, 5.0f);
+	camera->position = glm::vec3(0, 5.0f, 5.0f);
 	camera->target = glm::vec3(0);
 	controller->yaw = controller->pitch = 0;
 }
