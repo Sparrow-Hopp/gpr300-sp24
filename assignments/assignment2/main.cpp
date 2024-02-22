@@ -47,7 +47,7 @@ struct Blur {
 
 struct Position {
 	float xCoord = 1.0f;
-	float yCoord = -1.0f;
+	float yCoord = 1.0f;
 	float zCoord = 1.0f;
 }lightPosition;
 
@@ -117,6 +117,22 @@ int main() {
 			planeMesh.draw();
 
 		}
+		//RENDER WITH SHADOW MAP
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
+			glViewport(0, 0, framebuffer.width, framebuffer.height);
+
+			glClearColor(0.0f, 0.6f, 0.92f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glEnable(GL_DEPTH_TEST);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, shadowbuffer.shadowMap);
+
+			glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+
+		}
 		//RENDER TO FRAMEBUFFER
 		{
 			glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
@@ -128,6 +144,8 @@ int main() {
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, brickTexture);
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, shadowbuffer.shadowMap);
 
 			glDrawBuffer(GL_COLOR_ATTACHMENT0);
 		}
@@ -136,9 +154,10 @@ int main() {
 			//Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
 			shader.use();
 			shader.setInt("_MainTex", 0);
+			shader.setInt("_ShadowMap", 1);
 
 			shader.setVec3("_EyePos", camera.position);
-			shader.setVec3("_LightDirection", glm::normalize(glm::vec3(lightCamera.position.x, lightCamera.position.y * -1.0f, lightCamera.position.z)));
+			shader.setVec3("_LightPos", glm::normalize(glm::vec3(lightCamera.position.x, lightCamera.position.y * -1.0f, lightCamera.position.z)));
 
 			shader.setFloat("_Material.Ka", material.Ka);
 			shader.setFloat("_Material.Kd", material.Kd);
@@ -148,6 +167,7 @@ int main() {
 			//transform.modelMatrix() combines translation, rotation, and scale into a 4x4 model matrix
 			shader.setMat4("_Model", monkeyTransform.modelMatrix());
 			shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+			shader.setMat4("_LightViewProj", lightCamera.projectionMatrix() * lightCamera.viewMatrix());
 
 			monkeyModel.draw(); //Draws monkey model using current shader
 
@@ -173,7 +193,7 @@ int main() {
 		//Rotate model around Y axis
 		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
 
-		lightCamera.position = glm::vec3(lightPosition.xCoord * 5.0f, lightPosition.yCoord * -15.0f, lightPosition.zCoord * 5.0f);
+		lightCamera.position = glm::vec3(lightPosition.xCoord * 5.0f, lightPosition.yCoord * 15.0f, lightPosition.zCoord * 5.0f);
 
 		cameraController.move(window, &camera, deltaTime);
 
