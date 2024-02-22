@@ -45,11 +45,19 @@ struct Blur {
 	float intensity;
 }blur;
 
-struct Position {
+struct Light {
 	float xCoord = 1.0f;
 	float yCoord = 1.0f;
 	float zCoord = 1.0f;
-}lightPosition;
+	ImVec4 colour = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+}lightSpecs;
+
+struct Shadow {
+	float camDistance = 10.0f;
+	float camSize = 10.0f;
+	float minBias = 0.005f;
+	float maxBias = 0.015f;
+}shadowSpecs;
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 2", screenWidth, screenHeight);
@@ -66,8 +74,6 @@ int main() {
 	//Handles to OpenGL object are unsigned integers
 	GLuint brickTexture = ew::loadTexture("assets/brick_color.jpg");
 	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK); //Back face culling
-	glDepthFunc(GL_LESS);
 
 	//create buffers
 	shadowbuffer = sh::createShadowBuffer(2048, 2048);
@@ -82,16 +88,16 @@ int main() {
 
 	//set viewing camera values
 	camera.position = glm::vec3(0.0f, 5.0f, 5.0f);
-	camera.target = glm::vec3(0.0f, 0.0f, 0.0f); //Look at the center of the scene
+	camera.target = glm::vec3(0.0f); //Look at the center of the scene
 	camera.aspectRatio = (float)screenWidth / screenHeight;
 	camera.fov = 60.0f; //Vertical field of view, in degrees
 
 	//set lighting camera values
-	lightCamera.position = glm::vec3(5.0f, 15.0f, 5.0f);
+	lightCamera.position = glm::vec3(10.0f, shadowSpecs.camDistance, 10.0f);
 	lightCamera.target = glm::vec3(0.0f);
 	lightCamera.aspectRatio = 1.0f;
 	lightCamera.orthographic = true;
-	lightCamera.orthoHeight = 10.0f;
+	lightCamera.orthoHeight = shadowSpecs.camSize;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -105,6 +111,7 @@ int main() {
 			glBindFramebuffer(GL_FRAMEBUFFER, shadowbuffer.fbo);
 			glViewport(0, 0, shadowbuffer.width, shadowbuffer.height);
 			glClear(GL_DEPTH_BUFFER_BIT);
+			glCullFace(GL_FRONT);
 
 			shadowShader.use();
 
@@ -115,9 +122,8 @@ int main() {
 
 			shadowShader.setMat4("_Model", planeTransform.modelMatrix());
 			planeMesh.draw();
-
 		}
-		//RENDER WITH SHADOW MAP
+		//RENDER TO FRAMEBUFFER WITH SHADOW MAP
 		{
 			glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
 			glViewport(0, 0, framebuffer.width, framebuffer.height);
@@ -125,28 +131,14 @@ int main() {
 			glClearColor(0.0f, 0.6f, 0.92f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glEnable(GL_DEPTH_TEST);
-
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, shadowbuffer.shadowMap);
-
-			glDrawBuffer(GL_COLOR_ATTACHMENT0);
-
-
-		}
-		//RENDER TO FRAMEBUFFER
-		{
-			glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
-			glViewport(0, 0, framebuffer.width, framebuffer.height);
-
-			glClearColor(0.0f, 0.6f, 0.92f, 1.0f);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			glEnable(GL_DEPTH_TEST);
+			glCullFace(GL_BACK);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, brickTexture);
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, shadowbuffer.shadowMap);
 
+			glActiveTexture(GL_TEXTURE0);
 			glDrawBuffer(GL_COLOR_ATTACHMENT0);
 		}
 		//USE MONKEY SHADER AND DRAW
@@ -157,12 +149,15 @@ int main() {
 			shader.setInt("_ShadowMap", 1);
 
 			shader.setVec3("_EyePos", camera.position);
-			shader.setVec3("_LightPos", glm::normalize(glm::vec3(lightCamera.position.x, lightCamera.position.y * -1.0f, lightCamera.position.z)));
+			shader.setVec3("_LightPos", glm::normalize(glm::vec3(lightSpecs.xCoord, lightSpecs.yCoord, lightSpecs.zCoord)));
+			shader.setVec3("_LightColor", glm::vec3(lightSpecs.colour.x, lightSpecs.colour.y, lightSpecs.colour.z));
 
 			shader.setFloat("_Material.Ka", material.Ka);
 			shader.setFloat("_Material.Kd", material.Kd);
 			shader.setFloat("_Material.Ks", material.Ks);
 			shader.setFloat("_Material.Shininess", material.Shininess);
+			shader.setFloat("_Shadow.minBias", shadowSpecs.minBias);
+			shader.setFloat("_Shadow.maxBias", shadowSpecs.maxBias);
 
 			//transform.modelMatrix() combines translation, rotation, and scale into a 4x4 model matrix
 			shader.setMat4("_Model", monkeyTransform.modelMatrix());
@@ -193,7 +188,7 @@ int main() {
 		//Rotate model around Y axis
 		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
 
-		lightCamera.position = glm::vec3(lightPosition.xCoord * 5.0f, lightPosition.yCoord * 15.0f, lightPosition.zCoord * 5.0f);
+		lightCamera.position = glm::vec3(lightSpecs.xCoord, lightSpecs.yCoord, lightSpecs.zCoord) * shadowSpecs.camDistance;
 
 		cameraController.move(window, &camera, deltaTime);
 
@@ -231,11 +226,19 @@ void drawUI() {
 		ImGui::SliderFloat("Intensity", &blur.intensity, 1.0f, 10.0f);
 	}
 	if (ImGui::CollapsingHeader("Light")) {
-		ImGui::SliderFloat("X Coord", &lightPosition.xCoord, -1.0f, 1.0f);
-		ImGui::SliderFloat("Y Coord", &lightPosition.yCoord, -1.0f, 1.0f);
-		ImGui::SliderFloat("Z Coord", &lightPosition.zCoord, -1.0f, 1.0f);
+		ImGui::ColorEdit4("Light Colour", (float*)&lightSpecs.colour);
+		ImGui::SliderFloat("X Coord", &lightSpecs.xCoord, -1.0f, 1.0f);
+		ImGui::SliderFloat("Y Coord", &lightSpecs.yCoord, -1.0f, 1.0f);
+		ImGui::SliderFloat("Z Coord", &lightSpecs.zCoord, -1.0f, 1.0f);
+	}
+	if (ImGui::CollapsingHeader("Shadow")) {
+		ImGui::SliderFloat("Shadow Cam Distance", &shadowSpecs.camDistance, 5.0f, 100.0f);
+		ImGui::SliderFloat("Shadow Cam Size", &shadowSpecs.camSize, 5.0f, 20.0f);
+		ImGui::SliderFloat("Z Coord", &shadowSpecs.camDistance, -1.0f, 1.0f);
 	}
 	//Add more camera settings here!
+
+	ImGui::End();
 
 	ImGui::Begin("Shadow Map");
 	//Using a Child allow to fill all the space of the window.
@@ -246,8 +249,6 @@ void drawUI() {
 	//shadowMap is the texture2D handle
 	ImGui::Image((ImTextureID)shadowbuffer.shadowMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 	ImGui::EndChild();
-	ImGui::End();
-
 	ImGui::End();
 
 	ImGui::Render();

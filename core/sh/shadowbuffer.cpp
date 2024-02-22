@@ -26,11 +26,9 @@ namespace sh
 		float borderColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 		glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
-		glBindFramebuffer(GL_FRAMEBUFFER, buff.fbo);
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, buff.shadowMap, 0);
 		glDrawBuffer(GL_NONE);
 		glReadBuffer(GL_NONE);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		return buff;
 	}
