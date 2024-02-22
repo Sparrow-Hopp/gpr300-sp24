@@ -46,9 +46,7 @@ struct Blur {
 }blur;
 
 struct Light {
-	float xCoord = 1.0f;
-	float yCoord = 1.0f;
-	float zCoord = 1.0f;
+	glm::vec3 direction = glm::vec3(1.0f);
 	ImVec4 colour = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 }lightSpecs;
 
@@ -149,7 +147,7 @@ int main() {
 			shader.setInt("_ShadowMap", 1);
 
 			shader.setVec3("_EyePos", camera.position);
-			shader.setVec3("_LightPos", glm::normalize(glm::vec3(lightSpecs.xCoord, lightSpecs.yCoord, lightSpecs.zCoord)));
+			shader.setVec3("_LightPos", glm::normalize(lightSpecs.direction));
 			shader.setVec3("_LightColor", glm::vec3(lightSpecs.colour.x, lightSpecs.colour.y, lightSpecs.colour.z));
 
 			shader.setFloat("_Material.Ka", material.Ka);
@@ -188,7 +186,8 @@ int main() {
 		//Rotate model around Y axis
 		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
 
-		lightCamera.position = glm::vec3(lightSpecs.xCoord, lightSpecs.yCoord, lightSpecs.zCoord) * shadowSpecs.camDistance;
+		lightCamera.position = lightSpecs.direction * shadowSpecs.camDistance;
+		lightCamera.orthoHeight = shadowSpecs.camSize;
 
 		cameraController.move(window, &camera, deltaTime);
 
@@ -226,15 +225,14 @@ void drawUI() {
 		ImGui::SliderFloat("Intensity", &blur.intensity, 1.0f, 10.0f);
 	}
 	if (ImGui::CollapsingHeader("Light")) {
-		ImGui::ColorEdit4("Light Colour", (float*)&lightSpecs.colour);
-		ImGui::SliderFloat("X Coord", &lightSpecs.xCoord, -1.0f, 1.0f);
-		ImGui::SliderFloat("Y Coord", &lightSpecs.yCoord, -1.0f, 1.0f);
-		ImGui::SliderFloat("Z Coord", &lightSpecs.zCoord, -1.0f, 1.0f);
+		ImGui::ColorEdit3("Light Colour", (float*)&lightSpecs.colour);
+		ImGui::SliderFloat3("Direction", (float*)&lightSpecs.direction, -1.0f, 1.0f);
 	}
 	if (ImGui::CollapsingHeader("Shadow")) {
-		ImGui::SliderFloat("Shadow Cam Distance", &shadowSpecs.camDistance, 5.0f, 100.0f);
-		ImGui::SliderFloat("Shadow Cam Size", &shadowSpecs.camSize, 5.0f, 20.0f);
-		ImGui::SliderFloat("Z Coord", &shadowSpecs.camDistance, -1.0f, 1.0f);
+		ImGui::DragFloat("Shadow Cam Distance", &shadowSpecs.camDistance, 0.05f, 5.0f, 50);
+		ImGui::DragFloat("Shadow Cam Size", &shadowSpecs.camSize, 0.025f, 5.0f, 20.0f);
+		ImGui::DragFloat("Shadow Min Bias", &shadowSpecs.minBias, 0.000025f, 0.001f, 0.05f);
+		ImGui::DragFloat("Shadow Max Bias", &shadowSpecs.maxBias, 0.000025f, 0.015f, 0.1f);
 	}
 	//Add more camera settings here!
 
