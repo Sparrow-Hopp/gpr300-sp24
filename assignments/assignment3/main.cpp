@@ -145,6 +145,24 @@ int main() {
 			gBufferShader.setMat4("_Model", planeTransform.modelMatrix());
 			planeMesh.draw();
 		}
+		//LIGHTING PASS
+		{
+			//if using post processing, we draw to our offscreen framebuffer
+			glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
+			glViewport(0, 0, framebuffer.width, framebuffer.height);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			gBufferShader.use();
+			//TODO: Set the rest of your lighting uniforms for deferredShader. (same way we did this for lit.frag)
+
+			//Bind g-buffer textures
+			glBindTextureUnit(0, gBuffer.colorBuffer[0]);
+			glBindTextureUnit(1, gBuffer.colorBuffer[1]);
+			glBindTextureUnit(2, gBuffer.colorBuffer[2]);
+			glBindTextureUnit(3, shadowbuffer.shadowMap); //For shadow mapping
+
+			glBindVertexArray(dummyVAO);
+			glDrawArrays(GL_TRIANGLES, 0, 3);
+		}
 		//RENDER TO FRAMEBUFFER WITH SHADOW MAP
 		{
 			glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
