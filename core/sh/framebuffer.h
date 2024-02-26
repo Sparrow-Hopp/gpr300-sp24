@@ -14,5 +14,6 @@ namespace sh
 		unsigned int height;
 	};
 	FrameBuffer createFramebuffer(unsigned int width, unsigned int height, int colorFormat);
+	FrameBuffer createGBuffer(unsigned int width, unsigned int height);
 	void deleteFramebuffer(FrameBuffer buff);
 }
