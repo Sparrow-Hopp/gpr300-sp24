@@ -65,6 +65,7 @@ int main() {
 	ew::Shader postProcessingShader = ew::Shader("assets/screenQuad.vert", "assets/postProcess.frag");
 	ew::Shader shadowShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
 	ew::Shader gBufferShader = ew::Shader("assets/lit.vert", "assets/geometryPass.frag");
+	ew::Shader deferredShader = ew::Shader("assets/screenTri.vert", "assets/deferredLit.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
 
@@ -151,8 +152,25 @@ int main() {
 			glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
 			glViewport(0, 0, framebuffer.width, framebuffer.height);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			gBufferShader.use();
+			deferredShader.use();
 			//TODO: Set the rest of your lighting uniforms for deferredShader. (same way we did this for lit.frag)
+			//deferredShader.setInt("_gPositions", gBuffer.colorBuffer[0]);
+			//deferredShader.setInt("_gNormals", gBuffer.colorBuffer[1]);
+			//deferredShader.setInt("_gAlbedo", gBuffer.colorBuffer[2]);
+			deferredShader.setMat4("_LightViewProj", lightCamera.projectionMatrix() * lightCamera.viewMatrix());
+
+			deferredShader.setInt("_ShadowMap", 3);
+
+			deferredShader.setVec3("_EyePos", camera.position);
+			deferredShader.setVec3("_LightPos", glm::normalize(lightSpecs.direction));
+			deferredShader.setVec3("_LightColor", glm::vec3(lightSpecs.colour.x, lightSpecs.colour.y, lightSpecs.colour.z));
+
+			deferredShader.setFloat("_Material.Ka", material.Ka);
+			deferredShader.setFloat("_Material.Kd", material.Kd);
+			deferredShader.setFloat("_Material.Ks", material.Ks);
+			deferredShader.setFloat("_Material.Shininess", material.Shininess);
+			deferredShader.setFloat("_Shadow.minBias", shadowSpecs.minBias);
+			deferredShader.setFloat("_Shadow.maxBias", shadowSpecs.maxBias);
 
 			//Bind g-buffer textures
 			glBindTextureUnit(0, gBuffer.colorBuffer[0]);
@@ -162,50 +180,6 @@ int main() {
 
 			glBindVertexArray(dummyVAO);
 			glDrawArrays(GL_TRIANGLES, 0, 3);
-		}
-		//RENDER TO FRAMEBUFFER WITH SHADOW MAP
-		{
-			glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.fbo);
-			glViewport(0, 0, framebuffer.width, framebuffer.height);
-
-			glClearColor(0.0f, 0.6f, 0.92f, 1.0f);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, shadowbuffer.shadowMap);
-
-			glActiveTexture(GL_TEXTURE0);
-			glDrawBuffer(GL_COLOR_ATTACHMENT0);
-		}
-		//USE MONKEY SHADER AND DRAW
-		{
-			//Make "_MainTex" sampler2D sample from the 2D texture bound to unit 0
-			shader.use();
-			shader.setInt("_MainTex", 0);
-			shader.setInt("_ShadowMap", 1);
-
-			shader.setVec3("_EyePos", camera.position);
-			shader.setVec3("_LightPos", glm::normalize(lightSpecs.direction));
-			shader.setVec3("_LightColor", glm::vec3(lightSpecs.colour.x, lightSpecs.colour.y, lightSpecs.colour.z));
-
-			shader.setFloat("_Material.Ka", material.Ka);
-			shader.setFloat("_Material.Kd", material.Kd);
-			shader.setFloat("_Material.Ks", material.Ks);
-			shader.setFloat("_Material.Shininess", material.Shininess);
-			shader.setFloat("_Shadow.minBias", shadowSpecs.minBias);
-			shader.setFloat("_Shadow.maxBias", shadowSpecs.maxBias);
-
-			//transform.modelMatrix() combines translation, rotation, and scale into a 4x4 model matrix
-			shader.setMat4("_Model", monkeyTransform.modelMatrix());
-			shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-			shader.setMat4("_LightViewProj", lightCamera.projectionMatrix() * lightCamera.viewMatrix());
-
-			monkeyModel.draw(); //Draws monkey model using current shader
-
-			shader.setMat4("_Model", planeTransform.modelMatrix());
-			planeMesh.draw();
-
-			glBindTextureUnit(0, framebuffer.colorBuffer[0]);
 		}
 		//SWAP TO BACKGROUND AND DRAW TO FULLSCREEN QUAD USING POSTPROCESSING SHADER
 		{

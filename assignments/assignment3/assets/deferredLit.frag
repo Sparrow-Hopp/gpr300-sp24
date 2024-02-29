@@ -2,20 +2,14 @@
 out vec4 FragColor; //The color of this fragment
 in vec2 UV;
 
-in Surface{
-	vec3 WorldPos; //Vertex position in world space
-	vec3 WorldNormal; //Vertex normal in world space
-	vec2 TexCoord;
-	vec4 LightSpacePos;
-}fs_in;
-
-uniform sampler2D _MainTex;
 uniform sampler2D _ShadowMap;
 
 uniform vec3 _EyePos;
 uniform vec3 _LightPos;
 uniform vec3 _LightColor = vec3(1.0);
 uniform vec3 _AmbientColor = vec3(0.3,0.4,0.46);
+
+uniform mat4 _LightViewProj; //view + projection of light source camera
 
 //layout(binding = i) can be used as an alternative to shader.setInt()
 //Each sampler will always be bound to a specific texture unit
@@ -68,6 +62,7 @@ void main()
 	vec3 worldNormal = texture(_gNormals,UV).xyz;
 	vec3 worldPos = texture(_gPositions,UV).xyz;
 	vec3 albedo = texture(_gAlbedo,UV).xyz;
+	vec4 lightSpacePos = _LightViewProj * vec4(worldPos, 1);
 
 	//Make sure fragment normal is still length 1 after interpolation.
 	vec3 normal = normalize(worldNormal);
@@ -88,7 +83,7 @@ void main()
 	float minBias = 0.005; //Example values! 
 	float maxBias = 0.015;
 	float bias = max(_Shadow.maxBias * (1.0 - dot(normal,_LightPos)),_Shadow.minBias);
-	float shadow = calcShadow(_ShadowMap, fs_in.LightSpacePos, bias); 
+	float shadow = calcShadow(_ShadowMap, lightSpacePos, bias); 
 	vec3 light = albedo * (ambient + (diffuse + specular) * (1.0 - shadow));
 	FragColor = vec4(light,1.0);
 }
