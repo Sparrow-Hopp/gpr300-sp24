@@ -27,7 +27,7 @@ unsigned int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
-ew::Transform monkeyTransform, planeTransform;
+ew::Transform monkeyTransform [8][8], planeTransform;
 ew::CameraController cameraController;
 ew::Camera camera, lightCamera;
 
@@ -67,9 +67,13 @@ int main() {
 	ew::Shader gBufferShader = ew::Shader("assets/lit.vert", "assets/geometryPass.frag");
 	ew::Shader deferredShader = ew::Shader("assets/screenTri.vert", "assets/deferredLit.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
-	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
+	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(56, 56, 5));
 
-	monkeyTransform.position = glm::vec3(0.0f, 0.0f, 0.0f);
+	for (int i = 0; i < 8; i ++)
+	{
+		for (int j = 0; j < 8; j++)
+			monkeyTransform[i][j].position = glm::vec3(float(i * 8), float(j * 8), 0.0f);
+	}
 	planeTransform.position = glm::vec3(0.0f, -2.0f, 0.0f);
 	
 	//Handles to OpenGL object are unsigned integers
@@ -117,10 +121,15 @@ int main() {
 
 			shadowShader.use();
 
-			shadowShader.setMat4("_Model", monkeyTransform.modelMatrix());
 			shadowShader.setMat4("_ViewProjection", lightCamera.projectionMatrix() * lightCamera.viewMatrix());
-
-			monkeyModel.draw();
+			for (int i = 0; i < 8; i++)
+			{
+					for (int j = 0; j < 8; j++)
+					{
+						shadowShader.setMat4("_Model", monkeyTransform[i][j].modelMatrix());
+						monkeyModel.draw();
+					}
+			}
 
 			shadowShader.setMat4("_Model", planeTransform.modelMatrix());
 			planeMesh.draw();
@@ -138,10 +147,15 @@ int main() {
 
 			gBufferShader.use();
 
-			gBufferShader.setMat4("_Model", monkeyTransform.modelMatrix());
 			gBufferShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
-
-			monkeyModel.draw();
+			for (int i = 0; i < 8; i++)
+			{
+				for (int j = 0; j < 8; j++)
+				{
+					shadowShader.setMat4("_Model", monkeyTransform[i][j].modelMatrix());
+					monkeyModel.draw();
+				}
+			}
 
 			gBufferShader.setMat4("_Model", planeTransform.modelMatrix());
 			planeMesh.draw();
@@ -196,7 +210,11 @@ int main() {
 		}
 
 		//Rotate model around Y axis
-		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
+		for (int i = 0; i < 8; i++)
+		{
+			for (int j = 0; j < 8; j++)
+				monkeyTransform[i][j].rotation = glm::rotate(monkeyTransform[i][j].rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
+		}
 
 		lightCamera.position = lightSpecs.direction * shadowSpecs.camDistance;
 		lightCamera.orthoHeight = shadowSpecs.camSize;
