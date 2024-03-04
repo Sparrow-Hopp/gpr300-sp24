@@ -105,7 +105,6 @@ float attenuateExponential(float distance, float radius)
 	return i * i;
 }
 
-
 vec3 calcPointLight(PointLight light, vec3 normal)
 {
 	//Sample surface properties for this screen pixel
@@ -119,8 +118,6 @@ vec3 calcPointLight(PointLight light, vec3 normal)
 
 	//TODO: Usual blinn-phong calculations for diffuse + specular
 	//Make sure fragment normal is still length 1 after interpolation.
-	// ambient
-    vec3 ambient = _AmbientColor * light.color * _Material.Ka;
     // diffuse
     float diffuse = max(dot(toLight, normal), 0.0);
     vec3 diffuseFactor = _Material.Kd * diffuse * light.color;
@@ -129,7 +126,7 @@ vec3 calcPointLight(PointLight light, vec3 normal)
     vec3 halfwayDir = normalize(toLight + viewDir);  
     float spec = pow(max(dot(normal, halfwayDir), 0.0), _Material.Shininess);
     vec3 specularFactor = _Material.Ks * spec * light.color; 
-	vec3 lightColor = albedo * (ambient + diffuseFactor + specularFactor);
+	vec3 lightColor = (diffuseFactor + specularFactor);
 
 	//Attenuation
 	float d = length(diff); //Distance to light

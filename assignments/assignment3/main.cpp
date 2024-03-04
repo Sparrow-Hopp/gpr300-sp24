@@ -67,12 +67,12 @@ struct Shadow
 struct PointLight 
 {
 	glm::vec3 position;
-	float radius = 5.0f;
+	float radius = 2.0f;
 	glm::vec4 color;
 };
 
 //set up point lights
-const int MAX_POINT_LIGHTS = 64;
+const int MAX_POINT_LIGHTS = 1024;
 PointLight pointLights[MAX_POINT_LIGHTS];
 
 float randomFloat(int range, int minValue)
@@ -93,6 +93,7 @@ int main()
 	ew::Shader gBufferShader = ew::Shader("assets/lit.vert", "assets/geometryPass.frag");
 	ew::Shader deferredShader = ew::Shader("assets/screenTri.vert", "assets/deferredLit.frag");
 	ew::Shader lightOrbShader = ew::Shader("assets/lightOrb.vert", "assets/lightOrb.frag");
+	ew::Shader lightVolumeShader = ew::Shader("assets/lightOrb.vert", "assets/lightVolume.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(64, 64, 5));
 	ew::Mesh sphereMesh = ew::Mesh(ew::createSphere(2.0f, 8));
@@ -116,14 +117,16 @@ int main()
 	gBuffer = sh::createGBuffer(screenWidth, screenHeight);
 
 	//set point lights with different positions and colors
-	for (int i = 0; i < 8; i++)
+	for (int i = 0; i < 32; i++)
 	{
-		for (int j = 0; j < 8; j++)
+		for (int j = 0; j < 32; j++)
 		{
-			pointLights[i + j * 8].position = glm::vec3(float(i * 8 - 24), 0, float(j * 8 - 24));
-			pointLights[i + j * 8].color = glm::vec4(randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f, 1.0f);
+			pointLights[i + j * 32].position = glm::vec3(float(i * 2 - 27), 0, float(j * 2 - 27));
+			pointLights[i + j * 32].color = glm::vec4(randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f, 1.0f);
+			//std::cout << pointLights[i + j * 32].position.x << ", " << pointLights[i + j * 32].position.y << ", " << pointLights[i + j * 32].position.z << std::endl;
 		}
 	}
+
 	unsigned int lightsUBO;
 	glGenBuffers(1, &lightsUBO);
 	glBindBuffer(GL_UNIFORM_BUFFER, lightsUBO);
@@ -252,7 +255,7 @@ int main()
 			glBindVertexArray(dummyVAO);
 			glDrawArrays(GL_TRIANGLES, 0, 3);
 		}
-		//DRAW LIGHT ORBS
+		/*DRAW LIGHT ORBS
 		{
 			//Blit gBuffer depth to same framebuffer as fullscreen quad
 			glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer.fbo); //Read from gBuffer 
@@ -272,6 +275,44 @@ int main()
 				lightOrbShader.setVec3("_Color", glm::vec3(pointLights[i].color.r, pointLights[i].color.g, pointLights[i].color.b));
 				sphereMesh.draw();
 			}
+		}*/
+		//RENDER LIGHT VOLUMES
+		{
+			//Blit gBuffer depth to same framebuffer as fullscreen quad
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer.fbo); //Read from gBuffer 
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer.fbo); //Write to current fbo
+			glBlitFramebuffer(0, 0, screenWidth, screenHeight, 0, 0, screenWidth, screenHeight, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+			lightVolumeShader.use();
+			glEnable(GL_BLEND);
+			glBlendFunc(GL_ONE, GL_ONE); //Additive blending
+			glCullFace(GL_FRONT); //Front face culling - we want to render back faces so that the light volumes don't disappear when we enter them.
+			glDepthMask(GL_FALSE); //Disable writing to depth buffer
+
+			//Set all shader uniforms
+			lightVolumeShader.setMat4("_ViewProjection", camera.projectionMatrix()* camera.viewMatrix());
+			//TODO: Set all shader uniforms needed for lighting - Material props, camera position,etc. Same as fullscreen quad.
+			lightVolumeShader.setVec3("_EyePos", camera.position);
+
+			lightVolumeShader.setFloat("_Material.Ka", material.Ka);
+			lightVolumeShader.setFloat("_Material.Kd", material.Kd);
+			lightVolumeShader.setFloat("_Material.Ks", material.Ks);
+			lightVolumeShader.setFloat("_Material.Shininess", material.Shininess);
+
+			for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+			{
+				//Used to access light uniform buffer
+				lightVolumeShader.setInt("_LightIndex", i);
+				glm::mat4 m = glm::mat4(1.0f);
+				m = glm::translate(m, pointLights[i].position);
+				m = glm::scale(m, glm::vec3(pointLights[i].radius));
+				lightVolumeShader.setMat4("_Model", m);
+				sphereMesh.draw();
+			}
+
+			glDisable(GL_BLEND);
+			glCullFace(GL_BACK);
+			glDepthMask(GL_TRUE); //Enable writing to depth buffer
 		}
 		//SWAP TO BACKGROUND AND DRAW TO FULLSCREEN QUAD USING POSTPROCESSING SHADER
 		{
