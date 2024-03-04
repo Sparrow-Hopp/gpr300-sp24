@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <math.h>
+#include <iostream>
 
 #include <ew/external/glad.h>
 #include <ew/shader.h>
@@ -35,28 +36,39 @@ sh::ShadowBuffer shadowbuffer;
 sh::FrameBuffer framebuffer;
 sh::FrameBuffer gBuffer;
 
-struct Material {
+struct Material 
+{
 	float Ka = 1.0;
 	float Kd = 0.5;
 	float Ks = 0.5;
 	float Shininess = 128;
 }material;
 
-struct Blur {
+struct Blur 
+{
 	float intensity;
 }blur;
 
-struct Light {
+struct Light 
+{
 	glm::vec3 direction = glm::vec3(1.0f);
 	ImVec4 colour = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 }lightSpecs;
 
-struct Shadow {
-	float camDistance = 10.0f;
-	float camSize = 10.0f;
+struct Shadow 
+{
+	float camDistance = 30.0f;
+	float camSize = 30.0f;
 	float minBias = 0.005f;
 	float maxBias = 0.015f;
 }shadowSpecs;
+
+struct PointLight 
+{
+	glm::vec3 position;
+	float radius;
+	glm::vec4 color;
+};
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 2", screenWidth, screenHeight);
@@ -67,12 +79,14 @@ int main() {
 	ew::Shader gBufferShader = ew::Shader("assets/lit.vert", "assets/geometryPass.frag");
 	ew::Shader deferredShader = ew::Shader("assets/screenTri.vert", "assets/deferredLit.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
-	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(56, 56, 5));
+	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(64, 64, 5));
 
 	for (int i = 0; i < 8; i ++)
 	{
 		for (int j = 0; j < 8; j++)
-			monkeyTransform[i][j].position = glm::vec3(float(i * 8), float(j * 8), 0.0f);
+		{
+			monkeyTransform[i][j].position = glm::vec3(float(i * 8 - 28), 0, float(j * 8 - 28));
+		}
 	}
 	planeTransform.position = glm::vec3(0.0f, -2.0f, 0.0f);
 	
@@ -152,7 +166,7 @@ int main() {
 			{
 				for (int j = 0; j < 8; j++)
 				{
-					shadowShader.setMat4("_Model", monkeyTransform[i][j].modelMatrix());
+					gBufferShader.setMat4("_Model", monkeyTransform[i][j].modelMatrix());
 					monkeyModel.draw();
 				}
 			}
@@ -261,8 +275,8 @@ void drawUI() {
 			ImGui::SliderFloat3("Direction", (float*)&lightSpecs.direction, -1.0f, 1.0f);
 		}
 		if (ImGui::CollapsingHeader("Shadow")) {
-			ImGui::DragFloat("Shadow Cam Distance", &shadowSpecs.camDistance, 0.05f, 5.0f, 50);
-			ImGui::DragFloat("Shadow Cam Size", &shadowSpecs.camSize, 0.025f, 5.0f, 20.0f);
+			ImGui::DragFloat("Shadow Cam Distance", &shadowSpecs.camDistance, 0.05f, 30.0f, 50.0f);
+			ImGui::DragFloat("Shadow Cam Size", &shadowSpecs.camSize, 0.025f, 30.0f, 50.0f);
 			ImGui::DragFloat("Shadow Min Bias", &shadowSpecs.minBias, 0.000025f, 0.001f, 0.05f);
 			ImGui::DragFloat("Shadow Max Bias", &shadowSpecs.maxBias, 0.000025f, 0.015f, 0.1f);
 		}
