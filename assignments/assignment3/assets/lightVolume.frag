@@ -63,7 +63,6 @@ vec3 calcPointLight(PointLight light, vec3 worldPos, vec3 worldNormal)
 	return lightColor;
 }
 
-
 void main(){
 	//0-1 UV for sampling gBuffers
 	//gl_FragCoord is pixel position of the fragment

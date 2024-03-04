@@ -93,7 +93,7 @@ int main()
 	ew::Shader gBufferShader = ew::Shader("assets/lit.vert", "assets/geometryPass.frag");
 	ew::Shader deferredShader = ew::Shader("assets/screenTri.vert", "assets/deferredLit.frag");
 	ew::Shader lightOrbShader = ew::Shader("assets/lightOrb.vert", "assets/lightOrb.frag");
-	ew::Shader lightVolumeShader = ew::Shader("assets/lightOrb.vert", "assets/lightVolume.frag");
+	ew::Shader lightVolumeShader = ew::Shader("assets/lightVolume.vert", "assets/lightVolume.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(64, 64, 5));
 	ew::Mesh sphereMesh = ew::Mesh(ew::createSphere(2.0f, 8));
@@ -157,7 +157,8 @@ int main()
 	lightCamera.orthographic = true;
 	lightCamera.orthoHeight = shadowSpecs.camSize;
 
-	while (!glfwWindowShouldClose(window)) {
+	while (!glfwWindowShouldClose(window)) 
+	{
 		glfwPollEvents();
 
 		float time = (float)glfwGetTime();
@@ -254,7 +255,7 @@ int main()
 			glBindVertexArray(dummyVAO);
 			glDrawArrays(GL_TRIANGLES, 0, 3);
 		}
-		/*DRAW LIGHT ORBS
+		//DRAW LIGHT ORBS
 		{
 			//Blit gBuffer depth to same framebuffer as fullscreen quad
 			glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer.fbo); //Read from gBuffer 
@@ -274,19 +275,15 @@ int main()
 				lightOrbShader.setVec3("_Color", glm::vec3(pointLights[i].color.r, pointLights[i].color.g, pointLights[i].color.b));
 				sphereMesh.draw();
 			}
-		}*/
+		}
 		//RENDER LIGHT VOLUMES
 		{
-			//Blit gBuffer depth to same framebuffer as fullscreen quad
-			glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer.fbo); //Read from gBuffer 
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer.fbo); //Write to current fbo
-			glBlitFramebuffer(0, 0, screenWidth, screenHeight, 0, 0, screenWidth, screenHeight, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-
 			lightVolumeShader.use();
 			glEnable(GL_BLEND);
 			glBlendFunc(GL_ONE, GL_ONE); //Additive blending
 			glCullFace(GL_FRONT); //Front face culling - we want to render back faces so that the light volumes don't disappear when we enter them.
 			glDepthMask(GL_FALSE); //Disable writing to depth buffer
+			glDisable(GL_DEPTH_TEST);
 
 			//Set all shader uniforms
 			lightVolumeShader.setMat4("_ViewProjection", camera.projectionMatrix()* camera.viewMatrix());
@@ -318,6 +315,7 @@ int main()
 			glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
 			glClearColor(0.0f, 0.4f, 0.8f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glEnable(GL_DEPTH_TEST);
 
 			postProcessingShader.use();
 			postProcessingShader.setFloat("_Blur.intensity", blur.intensity);
