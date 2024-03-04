@@ -68,7 +68,7 @@ struct PointLight
 {
 	glm::vec3 position;
 	float radius = 5.0f;
-	glm::vec3 color;
+	glm::vec4 color;
 };
 
 //set up point lights
@@ -121,9 +121,19 @@ int main()
 		for (int j = 0; j < 8; j++)
 		{
 			pointLights[i + j * 8].position = glm::vec3(float(i * 8 - 24), 0, float(j * 8 - 24));
-			pointLights[i + j * 8].color = glm::vec3(randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f);
+			pointLights[i + j * 8].color = glm::vec4(randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f, 1.0f);
 		}
 	}
+	unsigned int lightsUBO;
+	glGenBuffers(1, &lightsUBO);
+	glBindBuffer(GL_UNIFORM_BUFFER, lightsUBO);
+	//Send pointLights data to GPU.
+	//GL_DYNAMIC_DRAW is a hint that we may change this data later.
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(pointLights), pointLights, GL_DYNAMIC_DRAW);
+	//Bind this UBO to slot 0 (matches "binding=0" in shader)
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, lightsUBO);
+	//Clean up by unbinding UBO
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 	unsigned int dummyVAO;
 	glCreateVertexArrays(1, &dummyVAO);
@@ -259,7 +269,7 @@ int main()
 				m = glm::scale(m, glm::vec3(0.2f)); //Whatever radius you want
 
 				lightOrbShader.setMat4("_Model", m);
-				lightOrbShader.setVec3("_Color", pointLights[i].color);
+				lightOrbShader.setVec3("_Color", glm::vec3(pointLights[i].color.r, pointLights[i].color.g, pointLights[i].color.b));
 				sphereMesh.draw();
 			}
 		}

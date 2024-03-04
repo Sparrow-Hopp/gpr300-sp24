@@ -39,8 +39,11 @@ struct PointLight
 	float radius;
 	vec3 color;
 };
-#define MAX_POINT_LIGHTS 64
-uniform PointLight _PointLights[MAX_POINT_LIGHTS];
+#define MAX_POINT_LIGHTS 1024
+layout (std140, binding=0) uniform AdditionalLights
+{
+	PointLight _PointLights[MAX_POINT_LIGHTS];
+};
 
 float calcShadow(sampler2D shadowMap, vec4 lightSpacePos, float bias)
 {
@@ -90,8 +93,6 @@ vec3 calcDirectionalLight()
 	
     // calculate shadow
 	//1: in shadow, 0: out of shadow
-	float minBias = 0.005; //Example values! 
-	float maxBias = 0.015;
 	float bias = max(_Shadow.maxBias * (1.0 - dot(normal,_LightPos)),_Shadow.minBias);
 	float shadow = calcShadow(_ShadowMap, lightSpacePos, bias); 
 	vec3 light = albedo * (ambient + (diffuse + specular) * (1.0 - shadow));
@@ -128,7 +129,7 @@ vec3 calcPointLight(PointLight light, vec3 normal)
     vec3 halfwayDir = normalize(toLight + viewDir);  
     float spec = pow(max(dot(normal, halfwayDir), 0.0), _Material.Shininess);
     vec3 specularFactor = _Material.Ks * spec * light.color; 
-	vec3 lightColor = diffuseFactor + specularFactor;
+	vec3 lightColor = albedo * (ambient + diffuseFactor + specularFactor);
 
 	//Attenuation
 	float d = length(diff); //Distance to light
