@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
+#include <stdlib.h>
 
 #include <ew/external/glad.h>
 #include <ew/shader.h>
@@ -57,8 +58,8 @@ struct Light
 
 struct Shadow 
 {
-	float camDistance = 30.0f;
-	float camSize = 30.0f;
+	float camDistance = 32.0f;
+	float camSize = 64.0f;
 	float minBias = 0.005f;
 	float maxBias = 0.015f;
 }shadowSpecs;
@@ -66,12 +67,25 @@ struct Shadow
 struct PointLight 
 {
 	glm::vec3 position;
-	float radius;
-	glm::vec4 color;
+	float radius = 5.0f;
+	glm::vec3 color;
 };
 
-int main() {
-	GLFWwindow* window = initWindow("Assignment 2", screenWidth, screenHeight);
+//set up point lights
+const int MAX_POINT_LIGHTS = 64;
+PointLight pointLights[MAX_POINT_LIGHTS];
+
+float randomFloat(int range, int minValue)
+{
+	float pureRand = rand() % range + minValue;
+	return pureRand;
+}
+
+int main() 
+{
+	srand(time(NULL));
+
+	GLFWwindow* window = initWindow("Assignment 3", screenWidth, screenHeight);
 
 	ew::Shader shader = ew::Shader("assets/lit.vert", "assets/lit.frag");
 	ew::Shader postProcessingShader = ew::Shader("assets/screenQuad.vert", "assets/postProcess.frag");
@@ -98,6 +112,17 @@ int main() {
 	shadowbuffer = sh::createShadowBuffer(2048, 2048);
 	framebuffer = sh::createFramebuffer(screenWidth, screenHeight, (int)(GL_RGB16F));
 	gBuffer = sh::createGBuffer(screenWidth, screenHeight);
+
+	//set point lights with different positions and colors
+	for (int i = 0; i < 8; i++)
+	{
+		for (int j = 0; j < 8; j++)
+		{
+			pointLights[i + j * 8].position = glm::vec3(float(i * 8 - 24), 0, float(j * 8 - 24));
+			pointLights[i + j * 8].color = glm::vec3(randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f);
+			std::cout << pointLights[i + j * 8].color.x << ", " << pointLights[i + j * 8].color.y << ", " << pointLights[i + j * 8].color.z << std::endl;
+		}
+	}
 
 	unsigned int dummyVAO;
 	glCreateVertexArrays(1, &dummyVAO);
@@ -182,9 +207,6 @@ int main() {
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			deferredShader.use();
 			//TODO: Set the rest of your lighting uniforms for deferredShader. (same way we did this for lit.frag)
-			//deferredShader.setInt("_gPositions", gBuffer.colorBuffer[0]);
-			//deferredShader.setInt("_gNormals", gBuffer.colorBuffer[1]);
-			//deferredShader.setInt("_gAlbedo", gBuffer.colorBuffer[2]);
 			deferredShader.setMat4("_LightViewProj", lightCamera.projectionMatrix() * lightCamera.viewMatrix());
 
 			deferredShader.setInt("_ShadowMap", 3);
@@ -199,6 +221,16 @@ int main() {
 			deferredShader.setFloat("_Material.Shininess", material.Shininess);
 			deferredShader.setFloat("_Shadow.minBias", shadowSpecs.minBias);
 			deferredShader.setFloat("_Shadow.maxBias", shadowSpecs.maxBias);
+
+			//Set point light uniforms
+			for (int i = 0; i < MAX_POINT_LIGHTS; i++) {
+				//Creates prefix "_PointLights[0]." etc
+				std::string prefix = "_PointLights[" + std::to_string(i) + "].";
+				deferredShader.setVec3(prefix + "position", pointLights[i].position);
+				deferredShader.setVec3(prefix + "color", pointLights[i].color);
+				deferredShader.setFloat(prefix + "radius", pointLights[i].radius);
+			}
+
 
 			//Bind g-buffer textures
 			glBindTextureUnit(0, gBuffer.colorBuffer[0]);
@@ -275,8 +307,8 @@ void drawUI() {
 			ImGui::SliderFloat3("Direction", (float*)&lightSpecs.direction, -1.0f, 1.0f);
 		}
 		if (ImGui::CollapsingHeader("Shadow")) {
-			ImGui::DragFloat("Shadow Cam Distance", &shadowSpecs.camDistance, 0.05f, 30.0f, 50.0f);
-			ImGui::DragFloat("Shadow Cam Size", &shadowSpecs.camSize, 0.025f, 30.0f, 50.0f);
+			ImGui::DragFloat("Shadow Cam Distance", &shadowSpecs.camDistance, 0.05f, 5.0f, 100.0f);
+			ImGui::DragFloat("Shadow Cam Size", &shadowSpecs.camSize, 0.025f, 5.0f, 100.0f);
 			ImGui::DragFloat("Shadow Min Bias", &shadowSpecs.minBias, 0.000025f, 0.001f, 0.05f);
 			ImGui::DragFloat("Shadow Max Bias", &shadowSpecs.maxBias, 0.000025f, 0.015f, 0.1f);
 		}
@@ -284,28 +316,17 @@ void drawUI() {
 		ImGui::End();
 	}
 
-	//SHADOW MAP PANEL
-	{
-		ImGui::Begin("Shadow Map");
-		//Using a Child allow to fill all the space of the window.
-		ImGui::BeginChild("Shadow Map");
-		//Stretch image to be window size
-		ImVec2 windowSize = ImGui::GetWindowSize();
-		//Invert 0-1 V to flip vertically for ImGui display
-		//shadowMap is the texture2D handle
-		ImGui::Image((ImTextureID)shadowbuffer.shadowMap, windowSize, ImVec2(0, 1), ImVec2(1, 0));
-		ImGui::EndChild();
-		ImGui::End();
-	}
-
 	//GBUFFER PANELS
 	{
 		ImGui::Begin("GBuffers");
+		ImVec2 windowSize = ImGui::GetWindowSize();
 		ImVec2 texSize = ImVec2(gBuffer.width / 4, gBuffer.height / 4);
 		for (size_t i = 0; i < 3; i++)
 		{
 			ImGui::Image((ImTextureID)gBuffer.colorBuffer[i], texSize, ImVec2(0, 1), ImVec2(1, 0));
 		}
+		//add in shadow map
+		ImGui::Image((ImTextureID)shadowbuffer.shadowMap, texSize, ImVec2(0, 1), ImVec2(1, 0));
 		ImGui::End();
 	}
 

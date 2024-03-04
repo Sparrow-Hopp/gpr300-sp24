@@ -33,6 +33,15 @@ struct Shadow{
 };
 uniform Shadow _Shadow;
 
+struct PointLight 
+{
+	vec3 position;
+	float radius;
+	vec3 color;
+};
+#define MAX_POINT_LIGHTS 64
+uniform PointLight _PointLights[MAX_POINT_LIGHTS];
+
 float calcShadow(sampler2D shadowMap, vec4 lightSpacePos, float bias)
 {
 	//Homogeneous Clip space to NDC [-w,w] to [-1,1]
@@ -56,14 +65,15 @@ float calcShadow(sampler2D shadowMap, vec4 lightSpacePos, float bias)
 	return totalShadow;
 }
 
-void main()
+vec3 calcDirectionalLight()
 {
 	//Sample surface properties for this screen pixel
 	vec3 worldNormal = texture(_gNormals,UV).xyz;
 	vec3 worldPos = texture(_gPositions,UV).xyz;
 	vec3 albedo = texture(_gAlbedo,UV).xyz;
 	vec4 lightSpacePos = _LightViewProj * vec4(worldPos, 1);
-
+	
+	//Usual Blinn-phong calculation
 	//Make sure fragment normal is still length 1 after interpolation.
 	vec3 normal = normalize(worldNormal);
 	// ambient
@@ -76,14 +86,64 @@ void main()
     vec3 viewDir = normalize(_EyePos - worldPos);
     vec3 halfwayDir = normalize(lightDir + viewDir);  
     float spec = pow(max(dot(normal, halfwayDir), 0.0), _Material.Shininess);
-    vec3 specular = _Material.Ks * spec * _LightColor;    
+    vec3 specular = _Material.Ks * spec * _LightColor;  
+	
     // calculate shadow
-	//Usual Blinn-phong calculation
 	//1: in shadow, 0: out of shadow
 	float minBias = 0.005; //Example values! 
 	float maxBias = 0.015;
 	float bias = max(_Shadow.maxBias * (1.0 - dot(normal,_LightPos)),_Shadow.minBias);
 	float shadow = calcShadow(_ShadowMap, lightSpacePos, bias); 
 	vec3 light = albedo * (ambient + (diffuse + specular) * (1.0 - shadow));
-	FragColor = vec4(light,1.0);
+	return light;
+}
+
+float attenuateExponential(float distance, float radius)
+{
+	float i = clamp(1.0 - pow(distance/radius,4.0),0.0,1.0);
+	return i * i;
+}
+
+
+vec3 calcPointLight(PointLight light, vec3 normal)
+{
+	//Sample surface properties for this screen pixel
+	vec3 worldNormal = texture(_gNormals,UV).xyz;
+	vec3 worldPos = texture(_gPositions,UV).xyz;
+	vec3 albedo = texture(_gAlbedo,UV).xyz;
+
+	vec3 diff = light.position - worldPos;
+	//Direction toward light position
+	vec3 toLight = normalize(diff);
+
+	//TODO: Usual blinn-phong calculations for diffuse + specular
+	//Make sure fragment normal is still length 1 after interpolation.
+	// ambient
+    vec3 ambient = _AmbientColor * light.color * _Material.Ka;
+    // diffuse
+    float diffuse = max(dot(toLight, normal), 0.0);
+    vec3 diffuseFactor = _Material.Kd * diffuse * light.color;
+    // specular
+    vec3 viewDir = normalize(_EyePos - worldPos);
+    vec3 halfwayDir = normalize(toLight + viewDir);  
+    float spec = pow(max(dot(normal, halfwayDir), 0.0), _Material.Shininess);
+    vec3 specularFactor = _Material.Ks * spec * light.color; 
+	vec3 lightColor = diffuseFactor + specularFactor;
+
+	//Attenuation
+	float d = length(diff); //Distance to light
+	lightColor *= attenuateExponential(d,light.radius); //See below for attenuation options
+	return lightColor;
+}
+
+void main()
+{ 
+	vec3 normal = normalize(texture(_gNormals,UV).xyz);
+
+	vec3 totalLight = calcDirectionalLight();
+	for(int i = 0; i < MAX_POINT_LIGHTS; i++)
+	{
+		totalLight += calcPointLight(_PointLights[i], normal);
+	}
+	FragColor = vec4(totalLight, 1.0);
 }
