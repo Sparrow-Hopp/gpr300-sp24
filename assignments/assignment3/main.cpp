@@ -92,8 +92,10 @@ int main()
 	ew::Shader shadowShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
 	ew::Shader gBufferShader = ew::Shader("assets/lit.vert", "assets/geometryPass.frag");
 	ew::Shader deferredShader = ew::Shader("assets/screenTri.vert", "assets/deferredLit.frag");
+	ew::Shader lightOrbShader = ew::Shader("assets/lightOrb.vert", "assets/lightOrb.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(64, 64, 5));
+	ew::Mesh sphereMesh = ew::Mesh(ew::createSphere(2.0f, 8));
 
 	for (int i = 0; i < 8; i ++)
 	{
@@ -120,7 +122,6 @@ int main()
 		{
 			pointLights[i + j * 8].position = glm::vec3(float(i * 8 - 24), 0, float(j * 8 - 24));
 			pointLights[i + j * 8].color = glm::vec3(randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f);
-			std::cout << pointLights[i + j * 8].color.x << ", " << pointLights[i + j * 8].color.y << ", " << pointLights[i + j * 8].color.z << std::endl;
 		}
 	}
 
@@ -240,6 +241,27 @@ int main()
 
 			glBindVertexArray(dummyVAO);
 			glDrawArrays(GL_TRIANGLES, 0, 3);
+		}
+		//DRAW LIGHT ORBS
+		{
+			//Blit gBuffer depth to same framebuffer as fullscreen quad
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, gBuffer.fbo); //Read from gBuffer 
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer.fbo); //Write to current fbo
+			glBlitFramebuffer(0, 0, screenWidth, screenHeight, 0, 0, screenWidth, screenHeight, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+			//Draw all light orbs
+			lightOrbShader.use();
+			lightOrbShader.setMat4("_ViewProjection", camera.projectionMatrix()* camera.viewMatrix());
+			for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+			{
+				glm::mat4 m = glm::mat4(1.0f);
+				m = glm::translate(m, pointLights[i].position);
+				m = glm::scale(m, glm::vec3(0.2f)); //Whatever radius you want
+
+				lightOrbShader.setMat4("_Model", m);
+				lightOrbShader.setVec3("_Color", pointLights[i].color);
+				sphereMesh.draw();
+			}
 		}
 		//SWAP TO BACKGROUND AND DRAW TO FULLSCREEN QUAD USING POSTPROCESSING SHADER
 		{
