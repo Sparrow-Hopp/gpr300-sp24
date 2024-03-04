@@ -15,6 +15,7 @@ struct PointLight{
 	float radius;
 	vec3 color;
 };
+
 #define MAX_POINT_LIGHTS 1024
 layout (std140, binding=0) uniform AdditionalLights{
 	PointLight _PointLights[MAX_POINT_LIGHTS];

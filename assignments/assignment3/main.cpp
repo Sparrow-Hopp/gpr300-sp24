@@ -123,7 +123,6 @@ int main()
 		{
 			pointLights[i + j * 32].position = glm::vec3(float(i * 2 - 27), 0, float(j * 2 - 27));
 			pointLights[i + j * 32].color = glm::vec4(randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f, randomFloat(256, 0) / 256.0f, 1.0f);
-			//std::cout << pointLights[i + j * 32].position.x << ", " << pointLights[i + j * 32].position.y << ", " << pointLights[i + j * 32].position.z << std::endl;
 		}
 	}
 
