@@ -17,7 +17,7 @@ struct PointLight{
 };
 
 #define MAX_POINT_LIGHTS 1024
-layout (std140, binding=0) uniform AdditionalLights{
+layout (std140, binding = 0) uniform AdditionalLights{
 	PointLight _PointLights[MAX_POINT_LIGHTS];
 };
 
@@ -72,6 +72,6 @@ void main(){
 	vec3 worldPos = texture(_gPositions,UV).xyz;
 	//Access this light's data
 	PointLight light = _PointLights[_LightIndex];
-	vec3 lightColor = calcPointLight(light,worldPos,normal);
+	vec3 lightColor = calcPointLight(light, worldPos, normal);
 	FragColor = vec4(lightColor * texture(_gAlbedo,UV).rgb, 1);
 }

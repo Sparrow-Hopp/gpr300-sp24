@@ -67,7 +67,7 @@ struct Shadow
 struct PointLight 
 {
 	glm::vec3 position;
-	float radius = 2.0f;
+	float radius = 5.0f;
 	glm::vec4 color;
 };
 
@@ -236,16 +236,6 @@ int main()
 			deferredShader.setFloat("_Shadow.minBias", shadowSpecs.minBias);
 			deferredShader.setFloat("_Shadow.maxBias", shadowSpecs.maxBias);
 
-			//Set point light uniforms
-			for (int i = 0; i < MAX_POINT_LIGHTS; i++) {
-				//Creates prefix "_PointLights[0]." etc
-				std::string prefix = "_PointLights[" + std::to_string(i) + "].";
-				deferredShader.setVec3(prefix + "position", pointLights[i].position);
-				deferredShader.setVec3(prefix + "color", pointLights[i].color);
-				deferredShader.setFloat(prefix + "radius", pointLights[i].radius);
-			}
-
-
 			//Bind g-buffer textures
 			glBindTextureUnit(0, gBuffer.colorBuffer[0]);
 			glBindTextureUnit(1, gBuffer.colorBuffer[1]);
@@ -254,6 +244,50 @@ int main()
 
 			glBindVertexArray(dummyVAO);
 			glDrawArrays(GL_TRIANGLES, 0, 3);
+		}
+		//RENDER LIGHT VOLUMES
+		{
+			lightVolumeShader.use();
+			glEnable(GL_BLEND);
+			glBlendFunc(GL_ONE, GL_ONE); //Additive blending
+			glCullFace(GL_FRONT); //Front face culling - we want to render back faces so that the light volumes don't disappear when we enter them.
+			glDepthMask(GL_FALSE); //Disable writing to depth buffer
+			glDisable(GL_DEPTH_TEST);
+
+			//Set all shader uniforms
+			lightVolumeShader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
+			//TODO: Set all shader uniforms needed for lighting - Material props, camera position,etc. Same as fullscreen quad.
+			lightVolumeShader.setVec3("_EyePos", camera.position);
+
+			lightVolumeShader.setFloat("_Material.Ka", material.Ka);
+			lightVolumeShader.setFloat("_Material.Kd", material.Kd);
+			lightVolumeShader.setFloat("_Material.Ks", material.Ks);
+			lightVolumeShader.setFloat("_Material.Shininess", material.Shininess);
+
+			//Set point light uniforms
+			/*for (int i = 0; i < MAX_POINT_LIGHTS; i++) {
+				//Creates prefix "_PointLights[0]." etc
+				std::string prefix = "_PointLights[" + std::to_string(i) + "].";
+				lightVolumeShader.setVec3(prefix + "position", pointLights[i].position);
+				lightVolumeShader.setVec3(prefix + "color", pointLights[i].color);
+				lightVolumeShader.setFloat(prefix + "radius", pointLights[i].radius);
+			}*/
+
+			for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+			{
+				//Used to access light uniform buffer
+				lightVolumeShader.setInt("_LightIndex", i);
+				glm::mat4 m = glm::mat4(1.0f);
+				m = glm::translate(m, pointLights[i].position);
+				m = glm::scale(m, glm::vec3(pointLights[i].radius));
+				lightVolumeShader.setMat4("_Model", m);
+				sphereMesh.draw();
+			}
+
+			glDisable(GL_BLEND);
+			glCullFace(GL_BACK);
+			glDepthMask(GL_TRUE); //Enable writing to depth buffer
+			glEnable(GL_DEPTH_TEST);
 		}
 		//DRAW LIGHT ORBS
 		{
@@ -275,40 +309,6 @@ int main()
 				lightOrbShader.setVec3("_Color", glm::vec3(pointLights[i].color.r, pointLights[i].color.g, pointLights[i].color.b));
 				sphereMesh.draw();
 			}
-		}
-		//RENDER LIGHT VOLUMES
-		{
-			lightVolumeShader.use();
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_ONE, GL_ONE); //Additive blending
-			glCullFace(GL_FRONT); //Front face culling - we want to render back faces so that the light volumes don't disappear when we enter them.
-			glDepthMask(GL_FALSE); //Disable writing to depth buffer
-			glDisable(GL_DEPTH_TEST);
-
-			//Set all shader uniforms
-			lightVolumeShader.setMat4("_ViewProjection", camera.projectionMatrix()* camera.viewMatrix());
-			//TODO: Set all shader uniforms needed for lighting - Material props, camera position,etc. Same as fullscreen quad.
-			lightVolumeShader.setVec3("_EyePos", camera.position);
-
-			lightVolumeShader.setFloat("_Material.Ka", material.Ka);
-			lightVolumeShader.setFloat("_Material.Kd", material.Kd);
-			lightVolumeShader.setFloat("_Material.Ks", material.Ks);
-			lightVolumeShader.setFloat("_Material.Shininess", material.Shininess);
-
-			for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-			{
-				//Used to access light uniform buffer
-				lightVolumeShader.setInt("_LightIndex", i);
-				glm::mat4 m = glm::mat4(1.0f);
-				m = glm::translate(m, pointLights[i].position);
-				m = glm::scale(m, glm::vec3(pointLights[i].radius));
-				lightVolumeShader.setMat4("_Model", m);
-				sphereMesh.draw();
-			}
-
-			glDisable(GL_BLEND);
-			glCullFace(GL_BACK);
-			glDepthMask(GL_TRUE); //Enable writing to depth buffer
 		}
 		//SWAP TO BACKGROUND AND DRAW TO FULLSCREEN QUAD USING POSTPROCESSING SHADER
 		{
