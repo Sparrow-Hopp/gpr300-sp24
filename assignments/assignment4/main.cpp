@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <math.h>
+#include <iostream>
 
 #include <ew/external/glad.h>
 #include <ew/shader.h>
@@ -27,7 +28,8 @@ unsigned int screenHeight = 720;
 float prevFrameTime;
 float deltaTime;
 
-ew::Transform monkeyTransform, planeTransform;
+ew::Transform planeTransform;
+ew::Transform monkeyTransforms[8];
 ew::CameraController cameraController;
 ew::Camera camera, lightCamera;
 
@@ -57,32 +59,30 @@ struct Shadow {
 	float maxBias = 0.015f;
 }shadowSpecs;
 
-namespace sh
+struct Node
 {
-	struct Node
-	{
-		glm::mat4 localTransform;
-		glm::mat4 globalTransform;
-		unsigned int parentIndex;
-	};
+	glm::mat4 localTransform;
+	glm::mat4 globalTransform;
+	unsigned int parentIndex;
+};
 
-	struct Hierarchy
-	{
-		Node* nodes;
-		unsigned int nodeCount;
-	};
+struct Hierarchy
+{
+	Node* nodes;
+	unsigned int nodeCount;
+}parentHierarchy;
 
-	void SolveFK(Hierarchy hierarchy)
+void SolveFK(Hierarchy hierarchy)
+{
+	for (int i = 0; i < static_cast<int>(hierarchy.nodeCount); i++)
 	{
-		for (int i = 0; i < hierarchy.nodeCount; i++)
-		{
-			if (hierarchy.nodes[i].parentIndex == -1)
-				hierarchy.nodes[i].globalTransform = hierarchy.nodes[i].localTransform;
-			else
-				hierarchy.nodes[i].globalTransform = hierarchy.nodes[hierarchy.nodes[i].parentIndex].globalTransform * hierarchy.nodes[i].localTransform;
-		}
+		if (hierarchy.nodes[i].parentIndex == -1)
+			hierarchy.nodes[i].globalTransform = hierarchy.nodes[i].localTransform;
+		else
+			hierarchy.nodes[i].globalTransform = hierarchy.nodes[hierarchy.nodes[i].parentIndex].globalTransform * hierarchy.nodes[i].localTransform;
 	}
 }
+
 
 int main() {
 	GLFWwindow* window = initWindow("Assignment 2", screenWidth, screenHeight);
@@ -92,8 +92,7 @@ int main() {
 	ew::Shader shadowShader = ew::Shader("assets/depthOnly.vert", "assets/depthOnly.frag");
 	ew::Model monkeyModel = ew::Model("assets/suzanne.obj");
 	ew::Mesh planeMesh = ew::Mesh(ew::createPlane(10, 10, 5));
-
-	monkeyTransform.position = glm::vec3(0.0f, 0.0f, 0.0f);
+	\
 	planeTransform.position = glm::vec3(0.0f, -2.0f, 0.0f);
 
 	//Handles to OpenGL object are unsigned integers
@@ -124,12 +123,60 @@ int main() {
 	lightCamera.orthographic = true;
 	lightCamera.orthoHeight = shadowSpecs.camSize;
 
-	while (!glfwWindowShouldClose(window)) {
+	//set up hierarchy
+	{
+		//set number of nodes
+		parentHierarchy.nodeCount = 8;
+		parentHierarchy.nodes = new Node[parentHierarchy.nodeCount];
+
+		//set the positions of each monkey
+		monkeyTransforms[0].position = glm::vec3(0.0);
+		monkeyTransforms[1].position = glm::vec3(-2.0, 0.0, 0.0);
+		monkeyTransforms[2].position = glm::vec3(2.0, 0.0, 0.0);
+		monkeyTransforms[3].position = glm::vec3(0.0, 2.0, 0.0);
+		monkeyTransforms[4].position = glm::vec3(-2.0, 0.0, 0.0);
+		monkeyTransforms[5].position = glm::vec3(2.0, 0.0, 0.0);
+		monkeyTransforms[6].position = glm::vec3(0.0, 2.0, 0.0);
+		monkeyTransforms[7].position = glm::vec3(0.0, 2.0, 0.0);
+
+		//set the scales of each monkey that isn't 1
+		for (int i = 1; i < static_cast<int>(parentHierarchy.nodeCount); i++)
+		{
+			monkeyTransforms[i].scale = glm::vec3(0.75);
+		}
+
+		//set the transforms of each node in the hierarchy
+		for (int i = 0; i < static_cast<int>(parentHierarchy.nodeCount); i++)
+		{
+			parentHierarchy.nodes[i].localTransform = monkeyTransforms[i].modelMatrix();
+		}
+
+		//set the parents of each node
+		parentHierarchy.nodes[0].parentIndex = -1;
+		parentHierarchy.nodes[1].parentIndex = 0;
+		parentHierarchy.nodes[2].parentIndex = 0;
+		parentHierarchy.nodes[3].parentIndex = 0;
+		parentHierarchy.nodes[4].parentIndex = 1;
+		parentHierarchy.nodes[5].parentIndex = 2;
+		parentHierarchy.nodes[6].parentIndex = 4;
+		parentHierarchy.nodes[7].parentIndex = 5;
+	}
+
+	while (!glfwWindowShouldClose(window)) 
+	{
 		glfwPollEvents();
 
 		float time = (float)glfwGetTime();
 		deltaTime = time - prevFrameTime;
 		prevFrameTime = time;
+
+		//set the transforms of each node in the hierarchy
+		for (int i = 0; i < static_cast<int>(parentHierarchy.nodeCount); i++)
+		{
+			parentHierarchy.nodes[i].localTransform = monkeyTransforms[i].modelMatrix();
+		}
+		//solve for global monkey transforms
+		SolveFK(parentHierarchy);
 
 		//RENDER TO SHADOW BUFFER
 		{
@@ -140,10 +187,16 @@ int main() {
 
 			shadowShader.use();
 
-			shadowShader.setMat4("_Model", monkeyTransform.modelMatrix());
 			shadowShader.setMat4("_ViewProjection", lightCamera.projectionMatrix() * lightCamera.viewMatrix());
 
-			monkeyModel.draw();
+			//draw all monkeys
+			{
+				for (int i = 0; i < static_cast<int>(parentHierarchy.nodeCount); i++)
+				{
+					shadowShader.setMat4("_Model", parentHierarchy.nodes[i].globalTransform);
+					monkeyModel.draw();
+				}
+			}
 
 			shadowShader.setMat4("_Model", planeTransform.modelMatrix());
 			planeMesh.draw();
@@ -184,12 +237,18 @@ int main() {
 			shader.setFloat("_Shadow.minBias", shadowSpecs.minBias);
 			shader.setFloat("_Shadow.maxBias", shadowSpecs.maxBias);
 
-			//transform.modelMatrix() combines translation, rotation, and scale into a 4x4 model matrix
-			shader.setMat4("_Model", monkeyTransform.modelMatrix());
 			shader.setMat4("_ViewProjection", camera.projectionMatrix() * camera.viewMatrix());
 			shader.setMat4("_LightViewProj", lightCamera.projectionMatrix() * lightCamera.viewMatrix());
 
-			monkeyModel.draw(); //Draws monkey model using current shader
+			//draw all monkeys
+			{
+				for (int i = 0; i < static_cast<int>(parentHierarchy.nodeCount); i++)
+				{
+					shader.setMat4("_Model", parentHierarchy.nodes[i].globalTransform);
+					monkeyModel.draw();
+				}
+			}
+
 
 			shader.setMat4("_Model", planeTransform.modelMatrix());
 			planeMesh.draw();
@@ -210,8 +269,15 @@ int main() {
 			glDrawArrays(GL_TRIANGLES, 0, 6); //6 for quad, 3 for triangle
 		}
 
-		//Rotate model around Y axis
-		monkeyTransform.rotation = glm::rotate(monkeyTransform.rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
+		//rotate monkeys
+		{
+			monkeyTransforms[0].rotation = glm::rotate(monkeyTransforms[0].rotation, deltaTime, glm::vec3(0.0, 1.0, 0.0));
+			monkeyTransforms[1].rotation = glm::rotate(monkeyTransforms[1].rotation, deltaTime, glm::vec3(1.0, 0.0, 0.0));
+			monkeyTransforms[2].rotation = glm::rotate(monkeyTransforms[2].rotation, deltaTime, glm::vec3(-1.0, 0.0, -0.0));
+			monkeyTransforms[3].rotation = glm::rotate(monkeyTransforms[3].rotation, deltaTime, glm::vec3(0.0, -1.0, 0.0));
+			monkeyTransforms[6].rotation = glm::rotate(monkeyTransforms[6].rotation, deltaTime, glm::vec3(0.0, 0.0, 1.0));
+			monkeyTransforms[7].rotation = glm::rotate(monkeyTransforms[7].rotation, deltaTime, glm::vec3(0.0, 0.0, -1.0));
+		}
 
 		lightCamera.position = lightSpecs.direction * shadowSpecs.camDistance;
 		lightCamera.orthoHeight = shadowSpecs.camSize;

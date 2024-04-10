@@ -67,7 +67,7 @@ struct Shadow
 struct PointLight 
 {
 	glm::vec3 position;
-	float radius = 5.0f;
+	float radius = 3.0f;
 	glm::vec4 color;
 };
 
